@@ -38,8 +38,7 @@ class LapinSpec extends Specification {
 					Queue.create('test').durable(true).bind('test')
 			)
 				.qosTolerance(15.0f)
-				.bindAckToRequest(true)
-				.dispatchOn(environment)
+				.log('queue')
 				.consume {
 					value = it.toString()
 
@@ -57,8 +56,10 @@ class LapinSpec extends Specification {
 			'a message is published'
 			Streams.just('hello Bob')
 					.map { ExchangeSignal.from(it) }
+					.log('publish')
 					.connect(LapinStreams.toExchange('test'))
 					.replyTo()
+					.log('replyTo')
 					.consume {
 						value2 = it.toString()
 						latch.countDown()
