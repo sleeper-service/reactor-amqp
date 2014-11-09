@@ -27,19 +27,27 @@ public class LapinQueueSubscription extends PushSubscription<QueueSignal> implem
 
 	private String consumerTag;
 	private long   deliveryTag;
+	private reactor.function.Consumer<QueueSignal> doOnNext;
 
 
 	public LapinQueueSubscription(Stream<QueueSignal> lapinStream, Subscriber<? super QueueSignal> subscriber,
 	                              Queue queue,
 	                              boolean bindAckToRequest,
 	                              Map<String, Object> consumerArguments,
-	                              Subscription dependency
+	                              Subscription dependency,
+	                              reactor.function.Consumer<QueueSignal> doOnNext
 	) {
 		super(lapinStream, subscriber);
 		this.queueConfig = queue;
 		this.bindAckToRequest = bindAckToRequest;
 		this.consumerArguments = consumerArguments;
 		this.dependency = dependency;
+		this.doOnNext = doOnNext != null ? doOnNext : new reactor.function.Consumer<QueueSignal>() {
+			@Override
+			public void accept(QueueSignal queueSignal) {
+				subscriber.onNext(queueSignal);
+			}
+		};
 	}
 
 	protected void preRequest(long elements) {
@@ -55,7 +63,7 @@ public class LapinQueueSubscription extends PushSubscription<QueueSignal> implem
 						this
 				);
 			} catch (Exception e) {
-				subscriber.onError(e);
+				onError(e);
 			}
 		}
 	}
@@ -107,7 +115,7 @@ public class LapinQueueSubscription extends PushSubscription<QueueSignal> implem
 
 	@Override
 	public void handleCancel(String consumerTag) throws IOException {
-		subscriber.onComplete();
+		onComplete();
 	}
 
 	@Override
@@ -128,7 +136,7 @@ public class LapinQueueSubscription extends PushSubscription<QueueSignal> implem
 			this.deliveryTag = envelope.getDeliveryTag();
 		}
 
-		subscriber.onNext(QueueSignal.from(body, consumerTag, envelope, properties));
+		doOnNext.accept(QueueSignal.from(body, consumerTag, envelope, properties));
 	}
 
 	public void channel(Channel channel) {

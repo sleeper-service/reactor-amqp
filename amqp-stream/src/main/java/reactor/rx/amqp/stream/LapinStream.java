@@ -1,6 +1,6 @@
 package reactor.rx.amqp.stream;
 
-import com.rabbitmq.client.*;
+import com.rabbitmq.client.Channel;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 import reactor.rx.Stream;
@@ -140,7 +140,7 @@ public class LapinStream extends Stream<QueueSignal> {
 			if (refCount.getAndIncrement() == 0) {
 				this.channel = lapin.createChannel();
 			}
-			subscriber.onSubscribe(createSubscription(subscriber, null));
+			subscriber.onSubscribe(createSubscription(subscriber, null, null));
 		} catch (Exception e) {
 			refCount.incrementAndGet();
 			subscriber.onError(e);
@@ -149,16 +149,17 @@ public class LapinStream extends Stream<QueueSignal> {
 
 
 	protected PushSubscription<QueueSignal> createSubscription(Subscriber<? super QueueSignal> subscriber,
-	                                                           Subscription dependency) {
+	                                                           Subscription dependency,
+	                                                           reactor.function.Consumer<QueueSignal> doOnNext) {
 		LapinQueueSubscription lapinQueueSubscription;
 
 		if (!qosMode()) {
 			lapinQueueSubscription = new LapinQueueSubscription(
-					this, subscriber, queueConfig, bindAckToRequest, consumerArguments, dependency);
+					this, subscriber, queueConfig, bindAckToRequest, consumerArguments, dependency, doOnNext);
 		} else {
 			lapinQueueSubscription = new LapinQueueWithQosSubscription(
 					this, subscriber, queueConfig, minQos(), maxQos(), qosTolerance(), bindAckToRequest, consumerArguments,
-					dependency);
+					dependency, doOnNext);
 		}
 		lapinQueueSubscription.channel(channel);
 

@@ -26,9 +26,10 @@ public class LapinQueueWithQosSubscription extends LapinQueueSubscription {
 	                                     Float qosTolerance,
 	                                     boolean bindAckToRequest,
 	                                     Map<String, Object> consumerArguments,
-	                                     Subscription dependency
+	                                     Subscription dependency,
+	                                     reactor.function.Consumer<QueueSignal> doOnNext
 	) {
-		super(lapinStream, subscriber, queue, bindAckToRequest, consumerArguments, dependency);
+		super(lapinStream, subscriber, queue, bindAckToRequest, consumerArguments, dependency, doOnNext);
 		Assert.isTrue(minQos > 0);
 		Assert.isTrue(maxQos > minQos);
 		Assert.isTrue(qosTolerance > 0);
@@ -48,7 +49,7 @@ public class LapinQueueWithQosSubscription extends LapinQueueSubscription {
 				try {
 					channel.basicQos((int) Math.min(maxQos, Math.max(minQos, elements)));
 				} catch (IOException e) {
-					subscriber.onError(e);
+					onError(e);
 				}
 			}
 

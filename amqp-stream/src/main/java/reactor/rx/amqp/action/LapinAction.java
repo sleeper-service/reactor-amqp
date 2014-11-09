@@ -6,6 +6,7 @@ import com.rabbitmq.client.ReturnListener;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 import reactor.event.dispatch.Dispatcher;
+import reactor.function.Consumer;
 import reactor.rx.action.Action;
 import reactor.rx.amqp.Lapin;
 import reactor.rx.amqp.signal.ExchangeSignal;
@@ -16,11 +17,12 @@ import reactor.rx.amqp.stream.LapinStream;
 import reactor.rx.subscription.PushSubscription;
 
 import java.io.IOException;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * @author Stephane Maldini
  */
-public class LapinAction extends Action<ExchangeSignal, Void> implements ReturnListener {
+public class LapinAction extends Action<ExchangeSignal, ExchangeSignal> implements ReturnListener {
 
 	public static final String DEFAULT_ROUTING_KEY = "#";
 
@@ -84,9 +86,13 @@ public class LapinAction extends Action<ExchangeSignal, Void> implements ReturnL
 
 			LapinStream lapinStream = new LapinStream(lapin, queue, false) {
 
+				final AtomicBoolean atLeastOnePublish = new AtomicBoolean();
+				final AtomicBoolean hasCompleted = new AtomicBoolean();
+
+
 				@Override
 				public PushSubscription<QueueSignal> createSubscription(Subscriber<? super QueueSignal> subscriber,
-				                                                        Subscription dependency) {
+				                                                        Subscription dependency, Consumer<QueueSignal> doOnNext) {
 
 					final PushSubscription<QueueSignal> originalSubscription = super.createSubscription(subscriber,
 							new Subscription() {
@@ -99,18 +105,30 @@ public class LapinAction extends Action<ExchangeSignal, Void> implements ReturnL
 								public void cancel() {
 									LapinAction.this.onShutdown();
 								}
+							}, doOnNext != null ? doOnNext : new Consumer<QueueSignal>() {
+									@Override
+									public void accept(QueueSignal queueSignal) {
+										subscriber.onNext(queueSignal);
+										if (hasCompleted.get()) {
+											subscriber.onComplete();
+										}
+									}
 							});
 
-					LapinAction.this.connect(new Action<Void, Void>() {
+					LapinAction.this.connect(new Action<ExchangeSignal, Void>() {
 
 						@Override
-						protected void doNext(Void ev) {
-							//IGNORE
+						protected void doNext(ExchangeSignal ev) {
+							atLeastOnePublish.compareAndSet(false, true);
 						}
 
 						@Override
 						protected void doComplete() {
-							originalSubscription.onComplete();
+							if (!atLeastOnePublish.get()) {
+								originalSubscription.onComplete();
+							} else {
+								hasCompleted.compareAndSet(false, true);
+							}
 						}
 
 						@Override
@@ -138,7 +156,7 @@ public class LapinAction extends Action<ExchangeSignal, Void> implements ReturnL
 	protected void onShutdown() {
 		if (this.channel != null) {
 			try {
-					lapin.destroyChannel(channel);
+				lapin.destroyChannel(channel);
 			} catch (IOException e) {
 				//IGNORE
 			}
@@ -157,6 +175,7 @@ public class LapinAction extends Action<ExchangeSignal, Void> implements ReturnL
 						wrapProperties(ev.properties()),
 						ev.get()
 				);
+				broadcastNext(ev);
 			} catch (Exception e) {
 				broadcastError(e);
 			}
