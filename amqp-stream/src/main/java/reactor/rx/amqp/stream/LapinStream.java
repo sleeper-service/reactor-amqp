@@ -3,6 +3,8 @@ package reactor.rx.amqp.stream;
 import com.rabbitmq.client.Channel;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
+import reactor.event.dispatch.Dispatcher;
+import reactor.function.Function;
 import reactor.rx.Stream;
 import reactor.rx.action.Action;
 import reactor.rx.amqp.Lapin;
@@ -10,6 +12,7 @@ import reactor.rx.amqp.signal.QueueSignal;
 import reactor.rx.amqp.spec.Queue;
 import reactor.rx.amqp.subscription.LapinQueueSubscription;
 import reactor.rx.amqp.subscription.LapinQueueWithQosSubscription;
+import reactor.rx.stream.LiftStream;
 import reactor.rx.subscription.PushSubscription;
 
 import java.io.IOException;
@@ -111,12 +114,17 @@ public class LapinStream extends Stream<QueueSignal> {
 	}
 
 	@Override
-	public <A, E extends Action<? super QueueSignal, ? extends A>> E connect(E action) {
-		super.connect(action);
-		if (qosMode()) {
-			action.capacity(maxQos());
+	public <V> Stream<V> lift(Function<? super Dispatcher, ? extends Action<? super QueueSignal, ? extends V>> action) {
+		if(qosMode()){
+			return new LiftStream<QueueSignal, V>(this, action){
+				@Override
+				public long getCapacity() {
+					return maxQos();
+				}
+			};
+		}else{
+			return super.lift(action);
 		}
-		return action;
 	}
 
 	@Override

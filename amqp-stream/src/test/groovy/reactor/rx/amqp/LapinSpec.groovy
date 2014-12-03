@@ -34,30 +34,37 @@ class LapinSpec extends Specification {
 			def value = ''
 			def value2 = ''
 
-			LapinStreams.fromQueue(
+			def publisher =	LapinStreams.toDefaultExchange()
+				publisher.consume()
+
+
+				LapinStreams.fromQueue(
 					Queue.create('test').durable(true).bind('test')
-			)
-				.qosTolerance(15.0f)
-				.log('queue')
-				.consume {
-					value = it.toString()
+				)
+					.qosTolerance(15.0f)
+					.log('queue')
+					.finallyDo {
+						println 'complete'
+						value = 'test'
+					}
+					.consume {
+						value = it.toString()
 
-					Streams.just(it.replyTo('hey Bernard'))
-							.connect(LapinStreams.toDefaultExchange())
-							.drain()
-
-				}.finallyDo {
-					println 'complete'
-					value = 'test'
-				}
+						Streams.just(it.replyTo('hey Bernard'))
+						.subscribe(publisher)
+					}
 
 
 		and:
 			'a message is published'
+			def publisherStream = LapinStreams.toExchange('test')
+
 			Streams.just('hello Bob')
 					.map { ExchangeSignal.from(it) }
 					.log('publish')
-					.connect(LapinStreams.toExchange('test'))
+					.subscribe(publisherStream)
+
+			publisherStream
 					.replyTo()
 					.log('replyTo')
 					.consume {

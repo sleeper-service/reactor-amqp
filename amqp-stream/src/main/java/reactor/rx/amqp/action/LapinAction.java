@@ -7,6 +7,7 @@ import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 import reactor.event.dispatch.Dispatcher;
 import reactor.function.Consumer;
+import reactor.function.Function;
 import reactor.rx.action.Action;
 import reactor.rx.amqp.Lapin;
 import reactor.rx.amqp.signal.ExchangeSignal;
@@ -37,11 +38,15 @@ public class LapinAction extends Action<ExchangeSignal, ExchangeSignal> implemen
 		this.exchangeConfig = exchangeConfig;
 	}
 
-	public void start() throws IOException {
-		this.channel = lapin.createChannel();
-		this.channel.addReturnListener(this);
-		if (exchangeConfig.exchange() != null) {
-			exchangeConfig.apply(this.channel);
+	public void start() {
+		try {
+			this.channel = lapin.createChannel();
+			this.channel.addReturnListener(this);
+			if (exchangeConfig.exchange() != null) {
+				exchangeConfig.apply(this.channel);
+			}
+		}catch (Throwable e){
+			onError(e);
 		}
 	}
 
@@ -98,7 +103,7 @@ public class LapinAction extends Action<ExchangeSignal, ExchangeSignal> implemen
 							new Subscription() {
 								@Override
 								public void request(long elements) {
-									LapinAction.this.onRequest(elements);
+									LapinAction.this.requestMore(elements);
 								}
 
 								@Override
@@ -115,25 +120,30 @@ public class LapinAction extends Action<ExchangeSignal, ExchangeSignal> implemen
 									}
 							});
 
-					LapinAction.this.connect(new Action<ExchangeSignal, Void>() {
-
+					LapinAction.this.lift(new Function<Dispatcher, Action<? super ExchangeSignal, Void>>() {
 						@Override
-						protected void doNext(ExchangeSignal ev) {
-							atLeastOnePublish.compareAndSet(false, true);
-						}
+						public Action<? super ExchangeSignal, Void> apply(Dispatcher dispatcher) {
+							return new Action<ExchangeSignal, Void>(dispatcher) {
 
-						@Override
-						protected void doComplete() {
-							if (!atLeastOnePublish.get()) {
-								originalSubscription.onComplete();
-							} else {
-								hasCompleted.compareAndSet(false, true);
-							}
-						}
+								@Override
+								protected void doNext(ExchangeSignal ev) {
+									atLeastOnePublish.compareAndSet(false, true);
+								}
 
-						@Override
-						protected void doError(Throwable error) {
-							originalSubscription.onError(error);
+								@Override
+								protected void doComplete() {
+									if (!atLeastOnePublish.get()) {
+										originalSubscription.onComplete();
+									} else {
+										hasCompleted.compareAndSet(false, true);
+									}
+								}
+
+								@Override
+								protected void doError(Throwable error) {
+									originalSubscription.onError(error);
+								}
+							};
 						}
 					});
 
