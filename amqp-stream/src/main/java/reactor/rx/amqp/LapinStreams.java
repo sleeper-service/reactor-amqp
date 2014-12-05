@@ -1,7 +1,7 @@
 package reactor.rx.amqp;
 
 import com.rabbitmq.client.ConnectionFactory;
-import reactor.event.dispatch.SynchronousDispatcher;
+import reactor.core.dispatch.SynchronousDispatcher;
 import reactor.rx.amqp.action.LapinAction;
 import reactor.rx.amqp.spec.Exchange;
 import reactor.rx.amqp.spec.Queue;

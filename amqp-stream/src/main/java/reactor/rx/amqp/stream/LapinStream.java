@@ -3,7 +3,7 @@ package reactor.rx.amqp.stream;
 import com.rabbitmq.client.Channel;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
-import reactor.event.dispatch.Dispatcher;
+import reactor.core.Dispatcher;
 import reactor.function.Function;
 import reactor.rx.Stream;
 import reactor.rx.action.Action;

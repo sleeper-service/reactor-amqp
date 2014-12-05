@@ -5,7 +5,7 @@ import com.rabbitmq.client.Channel;
 import com.rabbitmq.client.ReturnListener;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
-import reactor.event.dispatch.Dispatcher;
+import reactor.core.Dispatcher;
 import reactor.function.Consumer;
 import reactor.function.Function;
 import reactor.rx.action.Action;
